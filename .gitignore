@@ -1,0 +1,15 @@
+# .NET (frontend)
+.vs/
+frontend/bin/
+frontend/obj/
+*.user
+
+# Java (backend)
+backend/target/
+.idea/
+
+# Zigbee2MQTT runtime state (contains the network key)
+zigbee2mqtt/data/*
+!zigbee2mqtt/data/configuration.yaml
+
+.env

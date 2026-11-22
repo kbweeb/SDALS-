@@ -1,0 +1,33 @@
+# Zigbee2MQTT - protocol bridge layer
+# Translates ZigBee frames from the MOES lock (via the SONOFF ZBDongle-P) into JSON MQTT messages.
+
+homeassistant:
+  enabled: false
+
+frontend:
+  enabled: true
+  port: 8081          # Zigbee2MQTT's own web UI, useful in Stage 3 to inspect the lock
+
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://mosquitto:1883
+
+serial:
+  # Stage 2: set this to the dongle's serial port.
+  # Docker Desktop on Windows cannot pass USB devices directly - see README.md.
+  port: /dev/ttyUSB0
+  adapter: zstack      # SONOFF ZBDongle-P uses a TI CC2652P chip (Z-Stack firmware)
+
+advanced:
+  log_level: info
+  network_key: GENERATE
+  pan_id: GENERATE
+  ext_pan_id: GENERATE
+
+# Only allow pairing while you are adding the lock (Stage 3), then set back to false.
+permit_join: false
+
+devices: {}
+# After pairing, give the lock a friendly name so topics match the backend config:
+#   '0x00124b00xxxxxxxx':
+#     friendly_name: smart_lock

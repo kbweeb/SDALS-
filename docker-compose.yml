@@ -1,0 +1,49 @@
+# Infrastructure for the Smart Door Access Control System.
+# Starts the database, messaging and ZigBee bridge layers. The backend and frontend
+# are run from their own folders (mvnw / dotnet run) during development.
+#
+#   docker compose up -d postgres mosquitto      # Stage 1
+#   docker compose up -d zigbee2mqtt             # Stage 2, once the dongle is reachable
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: smartdoor-postgres
+    environment:
+      POSTGRES_DB: smartdoor
+      POSTGRES_USER: smartdoor
+      POSTGRES_PASSWORD: smartdoor
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: smartdoor-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./messaging/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    restart: unless-stopped
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:2
+    container_name: smartdoor-zigbee2mqtt
+    depends_on:
+      - mosquitto
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./zigbee2mqtt/data:/app/data
+    devices:
+      # Must match serial.port in zigbee2mqtt/data/configuration.yaml
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  mosquitto-data:
