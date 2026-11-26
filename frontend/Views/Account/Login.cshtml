@@ -1,0 +1,37 @@
+@{
+    ViewData["Title"] = "Sign in";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section class="login-wrap">
+    <div class="login-art">
+        <div class="login-art-content">
+            <span class="brand-mark large">S</span>
+            <p class="eyebrow light">SMART DOOR ACCESS &amp; LOGGING SYSTEM</p>
+            <h1>Access, managed<br><em>intelligently.</em></h1>
+            <p class="login-copy">A secure command centre for managing people, credentials and your connected smart lock.</p>
+            <div class="login-feature"><span>✓</span> Centralised access management</div>
+            <div class="login-feature"><span>✓</span> Real-time device telemetry</div>
+            <div class="login-feature"><span>✓</span> Traceable access history</div>
+        </div>
+        <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
+    </div>
+    <div class="login-panel">
+        <div class="login-form">
+            <div class="mobile-brand"><span class="brand-mark">S</span><b>SDALS</b></div>
+            <span class="eyebrow">ADMINISTRATOR PORTAL</span>
+            <h2>Welcome back</h2>
+            <p class="muted">Sign in with your SDALS administrator account.</p>
+            @if (ViewBag.Error is string error) { <div class="alert alert-error">@error</div> }
+            <form asp-controller="Account" asp-action="Login" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+                <label for="username">Username</label>
+                <input id="username" name="username" autocomplete="username" placeholder="Enter your username" required />
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required />
+                <button class="btn btn-primary btn-wide" type="submit">Sign in <span>→</span></button>
+            </form>
+            <p class="login-foot">Protected administrator access · SDALS</p>
+        </div>
+    </div>
+</section>
