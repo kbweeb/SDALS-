@@ -1,0 +1,99 @@
+@model CARD_system.Models.DashboardViewModel
+@{
+    ViewData["Title"] = "Overview";
+    var state = Model.Device.LockState?.ToUpperInvariant();
+    var locked = state == "LOCKED";
+}
+@if (TempData["Notice"] is string notice) { <div class="alert alert-success dismissible">@notice <button type="button" class="alert-close">×</button></div> }
+@if (TempData["Error"] is string actionError) { <div class="alert alert-error dismissible">@actionError <button type="button" class="alert-close">×</button></div> }
+@if (Model.Error is string error) { <div class="alert alert-error">@error</div> }
+
+<section id="overview" class="section-block">
+    <div class="section-heading"><div><span class="eyebrow">SYSTEM SNAPSHOT</span><h2>Good to see you, @(ViewBag.Username) <span class="wave">✦</span></h2><p class="muted">Here’s what’s happening with your access system.</p></div><span class="date-chip">@DateTime.Now.ToString("ddd, dd MMM yyyy")</span></div>
+    <div class="stats-grid">
+        <article class="stat-card"><div class="stat-icon icon-violet">♙</div><span class="stat-label">TOTAL USERS</span><strong>@Model.Users.Count</strong><small>@Model.ActiveUsers active · @Model.InactiveUsers inactive</small></article>
+        <article class="stat-card"><div class="stat-icon icon-green">✓</div><span class="stat-label">GRANTED TODAY</span><strong>@Model.GrantedToday</strong><small>Successful access events in loaded logs</small></article>
+        <article class="stat-card"><div class="stat-icon icon-red">⊘</div><span class="stat-label">DENIED TODAY</span><strong>@Model.DeniedToday</strong><small>Rejected access events in loaded logs</small></article>
+        <article class="stat-card"><div class="stat-icon icon-blue">▤</div><span class="stat-label">CREDENTIALS</span><strong>@Model.Credentials.Values.Sum(x => x.Count)</strong><small>Mapped lock slots</small></article>
+    </div>
+</section>
+
+<section class="device-card section-block">
+    <div class="device-main">
+        <div class="device-heading"><div class="device-icon">⌑</div><div><span class="eyebrow">CONNECTED HARDWARE</span><h2>Front door smart lock</h2><p class="muted">MOES ZigBee · SONOFF coordinator</p></div></div>
+        <div class="device-state"><span class="state-dot @(locked ? "is-green" : state == "UNLOCKED" ? "is-amber" : "is-muted")"></span><span>@(state ?? "WAITING FOR DEVICE")</span><small>@(Model.Device.LastSeen?.ToLocalTime().ToString("dd MMM, HH:mm:ss") ?? "No telemetry received yet")</small></div>
+        <div class="device-actions">
+            <form asp-action="Lock" method="post">@Html.AntiForgeryToken()<input type="hidden" name="command" value="lock" /><button class="btn btn-outline" type="submit">⌑ Lock door</button></form>
+            <form asp-action="Lock" method="post" data-confirm="Send an unlock command to the door?">@Html.AntiForgeryToken()<input type="hidden" name="command" value="unlock" /><button class="btn btn-primary" type="submit">↗ Unlock door</button></form>
+        </div>
+    </div>
+    <div class="device-metrics">
+        <div class="metric"><span>BATTERY</span><b>@(Model.Device.Battery is int battery ? battery + "%" : "—")</b><div class="meter"><i style="width:@(Model.Device.Battery ?? 0)%"></i></div></div>
+        <div class="metric"><span>LINK QUALITY</span><b>@(Model.Device.LinkQuality?.ToString() ?? "—") <small>/ 255</small></b><div class="meter"><i style="width:@(Math.Clamp((Model.Device.LinkQuality ?? 0) * 100 / 255, 0, 100))%"></i></div></div>
+        <p class="metric-note">Device values update when Zigbee2MQTT telemetry reaches the backend.</p>
+    </div>
+</section>
+
+<section id="users" class="section-block">
+    <div class="section-heading compact"><div><span class="eyebrow">ACCESS DIRECTORY</span><h2>User management</h2><p class="muted">Create users and manage who can access the door.</p></div><button class="btn btn-primary" type="button" data-modal-open="addUserModal">＋ Add user</button></div>
+    <div class="table-wrap">
+        <table><thead><tr><th>USER</th><th>ROLE</th><th>CREDENTIALS</th><th>STATUS</th><th>CREATED</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var user in Model.Users)
+        {
+            var creds = Model.Credentials.GetValueOrDefault(user.Id) ?? [];
+            <tr>
+                <td><div class="person-cell"><span class="avatar small-avatar">@user.FirstName.FirstOrDefault()@user.LastName.FirstOrDefault()</span><span><b>@user.FirstName @user.LastName</b><small>ID #@user.Id</small></span></div></td>
+                <td><span class="role-pill">@user.Role</span></td>
+                <td>@creds.Count mapped</td>
+                <td><span class="status-pill @(user.Active ? "status-active" : "status-inactive")">● @(user.Active ? "Active" : "Inactive")</span></td>
+                <td>@(user.CreatedAt?.ToString("dd MMM yyyy") ?? "—")</td>
+                <td class="actions-cell">
+                    <button class="icon-btn" type="button" title="Manage credentials" data-modal-open="credential-@user.Id">▤</button>
+                    @if (user.Active) { <form asp-action="DeactivateUser" method="post" data-confirm="Deactivate @user.FirstName @user.LastName?"><input type="hidden" name="id" value="@user.Id" />@Html.AntiForgeryToken()<button class="icon-btn danger" title="Deactivate user" type="submit">⊘</button></form> }
+                </td>
+            </tr>
+        }
+        @if (Model.Users.Count == 0) { <tr><td colspan="6" class="empty-state">No users found. Add your first user to get started.</td></tr> }
+        </tbody></table>
+    </div>
+</section>
+
+<section id="credentials" class="section-block">
+    <div class="section-heading compact"><div><span class="eyebrow">LOCK AUTHENTICATION</span><h2>Credential mappings</h2><p class="muted">Connect an enrolled lock slot to a system user.</p></div></div>
+    <div class="credential-grid">
+    @foreach (var user in Model.Users)
+    {
+        var creds = Model.Credentials.GetValueOrDefault(user.Id) ?? [];
+        <article class="credential-card"><div class="credential-user"><span class="avatar small-avatar">@user.FirstName.FirstOrDefault()@user.LastName.FirstOrDefault()</span><div><b>@user.FirstName @user.LastName</b><small>@creds.Count credential(s)</small></div></div>
+        @if (creds.Count == 0) { <p class="muted tiny">No credentials mapped yet.</p> }
+        @foreach (var c in creds)
+        {
+            <div class="credential-row"><span class="credential-type">@c.Type.Replace("_", " ")</span><span>Slot @c.Index</span><form asp-action="DeleteCredential" method="post" data-confirm="Remove this credential mapping?"><input type="hidden" name="id" value="@c.Id" />@Html.AntiForgeryToken()<button class="text-danger" type="submit">Remove</button></form></div>
+        }
+        <button class="text-button" type="button" data-modal-open="credential-@user.Id">＋ Map a credential</button></article>
+    }
+    </div>
+</section>
+
+<section id="activity" class="section-block">
+    <div class="section-heading compact"><div><span class="eyebrow">AUDIT TRAIL</span><h2>Recent access activity</h2><p class="muted">Latest events recorded by the system.</p></div><span class="date-chip">Latest 100 records</span></div>
+    <div class="table-wrap">
+        <table><thead><tr><th>PERSON</th><th>METHOD</th><th>RESULT</th><th>DATE &amp; TIME</th></tr></thead><tbody>
+        @foreach (var log in Model.Logs)
+        {
+            var granted = string.Equals(log.Status, "GRANTED", StringComparison.OrdinalIgnoreCase);
+            <tr><td><b>@(log.UserName ?? "Unknown user")</b></td><td>@(log.Method ?? "—")</td><td><span class="status-pill @(granted ? "status-active" : "status-inactive")">● @(log.Status ?? "UNKNOWN")</span></td><td>@(log.LoggedAt?.ToString("dd MMM yyyy · HH:mm:ss") ?? "—")</td></tr>
+        }
+        @if (Model.Logs.Count == 0) { <tr><td colspan="4" class="empty-state">No access events have been recorded yet.</td></tr> }
+        </tbody></table>
+    </div>
+</section>
+
+<div class="modal-backdrop" id="addUserModal"><div class="modal-card"><div class="modal-head"><div><span class="eyebrow">NEW RECORD</span><h3>Add a user</h3></div><button class="icon-btn" data-modal-close type="button">×</button></div><form asp-action="CreateUser" method="post" class="form-stack">@Html.AntiForgeryToken()<label>First name<input name="firstName" maxlength="50" required /></label><label>Last name<input name="lastName" maxlength="50" required /></label><label>Role<select name="role"><option value="STUDENT">Student</option><option value="GUEST">Guest</option><option value="ADMIN">Administrator</option></select></label><div class="modal-actions"><button class="btn btn-outline" type="button" data-modal-close>Cancel</button><button class="btn btn-primary" type="submit">Create user</button></div></form></div></div>
+
+@foreach (var user in Model.Users)
+{
+    <div class="modal-backdrop" id="credential-@user.Id"><div class="modal-card"><div class="modal-head"><div><span class="eyebrow">CREDENTIAL MAPPING</span><h3>@user.FirstName @user.LastName</h3></div><button class="icon-btn" data-modal-close type="button">×</button></div>
+    <form asp-action="AddCredential" method="post" class="form-stack">@Html.AntiForgeryToken()<input type="hidden" name="userId" value="@user.Id" /><label>Credential type<select name="type"><option value="FINGERPRINT">Fingerprint</option><option value="RFID_CARD">RFID card</option><option value="PASSWORD">PIN / password</option></select></label><label>Lock slot index<input type="number" name="index" min="0" value="0" required /></label><label>Card UID <span class="muted">(RFID only, optional)</span><input name="cardUid" placeholder="e.g. 04:A1:B2:C3" /></label><p class="form-hint">This maps a credential already enrolled on the physical lock. It does not enroll the credential onto the lock.</p><div class="modal-actions"><button class="btn btn-outline" type="button" data-modal-close>Cancel</button><button class="btn btn-primary" type="submit">Save mapping</button></div></form></div></div>
+}
